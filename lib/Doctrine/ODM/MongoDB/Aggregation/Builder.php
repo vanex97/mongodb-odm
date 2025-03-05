@@ -14,6 +14,7 @@ use Doctrine\ODM\MongoDB\Query\Expr as QueryExpr;
 use GeoJson\Geometry\Point;
 use MongoDB\Collection;
 use OutOfRangeException;
+use stdClass;
 use TypeError;
 
 use function array_map;
@@ -264,6 +265,11 @@ class Builder
      * @param bool $applyFilters Whether to apply filters on the aggregation
      * pipeline stage
      *
+     * For pipelines where the first stage is a $match stage, it will merge
+     * the document filters with the existing stage in a logical $and. This is
+     * required as $text operator can be used anywhere in the first $match stage
+     * or in the document filters.
+     *
      * For pipelines where the first stage is a $geoNear stage, it will apply
      * the document filters and discriminator queries to the query portion of
      * the geoNear operation. For all other pipelines, it prepends a $match stage
@@ -306,14 +312,20 @@ class Builder
             return $pipeline;
         }
 
-        if ($this->getStage(0) instanceof Stage\GeoNear) {
+        if (isset($pipeline[0]['$geoNear'])) {
             $pipeline[0]['$geoNear']['query'] = $this->applyFilters($pipeline[0]['$geoNear']['query']);
 
             return $pipeline;
         }
 
+        if (isset($pipeline[0]['$match'])) {
+            $pipeline[0]['$match'] = $this->applyFilters($pipeline[0]['$match']);
+
+            return $pipeline;
+        }
+
         $matchExpression = $this->applyFilters([]);
-        if ($matchExpression !== []) {
+        if ((array) $matchExpression !== []) {
             array_unshift($pipeline, ['$match' => $matchExpression]);
         }
 
@@ -696,18 +708,22 @@ class Builder
     /**
      * Applies filters and discriminator queries to the pipeline
      *
-     * @param array<string, mixed> $query
+     * @param array<string, mixed>|stdClass $query
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed>|stdClass
      */
-    private function applyFilters(array $query): array
+    private function applyFilters(array|stdClass $query): array|stdClass
     {
+        if (! is_array($query)) {
+            $query = (array) $query;
+        }
+
         $documentPersister = $this->getDocumentPersister();
 
         $query = $documentPersister->addDiscriminatorToPreparedQuery($query);
         $query = $documentPersister->addFilterToPreparedQuery($query);
 
-        return $query;
+        return $query === [] ? (object) $query : $query;
     }
 
     private function getDocumentPersister(): DocumentPersister

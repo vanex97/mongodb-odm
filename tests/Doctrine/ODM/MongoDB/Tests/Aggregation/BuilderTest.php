@@ -368,6 +368,36 @@ class BuilderTest extends BaseTestCase
         self::assertEquals($expectedPipeline, $builder->getPipeline());
     }
 
+    public function testBuilderMergeFilterAndDiscriminatorWithMatchStage(): void
+    {
+        $this->dm->getFilterCollection()->enable('testFilter');
+        $filter = $this->dm->getFilterCollection()->getFilter('testFilter');
+        $filter->setParameter('class', GuestServer::class);
+        $filter->setParameter('field', 'filtered');
+        $filter->setParameter('value', true);
+
+        $builder = $this->dm->createAggregationBuilder(GuestServer::class);
+        $builder
+            ->match()
+                ->text('Paul');
+
+        $expectedPipeline = [
+            [
+                '$match' => [
+                    '$and' => [
+                        [
+                            'stype' => 'server_guest',
+                            '$text' => ['$search' => 'Paul'],
+                        ],
+                        ['filtered' => true],
+                    ],
+                ],
+            ],
+        ];
+
+        self::assertEquals($expectedPipeline, $builder->getPipeline());
+    }
+
     public function testBuilderAppliesFilterAndDiscriminatorWithGeoNearStage(): void
     {
         $this->dm->getFilterCollection()->enable('testFilter');
