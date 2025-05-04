@@ -76,7 +76,7 @@ class Builder
      */
     private bool $readOnly = false;
 
-    private bool $rewindable = true;
+    private bool $rewindable = false;
 
     /**
      * The Collection instance.
@@ -1394,7 +1394,7 @@ class Builder
         return $this;
     }
 
-    public function setRewindable(bool $rewindable = true): self
+    public function setRewindable(bool $rewindable = false): self
     {
         $this->rewindable = $rewindable;
 
